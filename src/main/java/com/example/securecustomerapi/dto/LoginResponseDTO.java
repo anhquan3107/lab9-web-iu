@@ -2,7 +2,11 @@ package com.example.securecustomerapi.dto;
 
 public class LoginResponseDTO {
     
+
+    private String accessToken;
+    private String refreshToken;
     private String token;
+
     private String type = "Bearer";
     private String username;
     private String email;
@@ -17,8 +21,34 @@ public class LoginResponseDTO {
         this.email = email;
         this.role = role;
     }
+
+        
+    public LoginResponseDTO(String accessToken, String refreshToken, String username, String email, String role) {
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;   
+        this.username = username;
+        this.email = email;
+        this.role = role;
+    }
+    
     
     // Getters and Setters
+
+    public String getAccessToken() {
+        return accessToken;
+    }
+
+    public void setAccessToken(String accessToken) {
+        this.accessToken = accessToken;
+    }
+
+    public String getRefreshToken() {
+        return refreshToken;
+    }
+
+    public void setRefreshToken(String refreshToken) {
+        this.refreshToken = refreshToken;
+    }
     public String getToken() {
         return token;
     }

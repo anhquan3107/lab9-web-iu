@@ -1,6 +1,7 @@
 package com.example.securecustomerapi.controller;
 
 import com.example.securecustomerapi.dto.*;
+import com.example.securecustomerapi.service.AuthService;
 import com.example.securecustomerapi.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,8 @@ public class AuthController {
     
     @Autowired
     private UserService userService;
+    @Autowired
+    private AuthService authService;
     
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO loginRequest) {
@@ -49,4 +52,35 @@ public class AuthController {
         response.put("message", "Logged out successfully. Please remove token from client.");
         return ResponseEntity.ok(response);
     }
+
+    @PutMapping("/change-password")
+    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordDTO dto) {
+        authService.changePassword(dto);
+        return ResponseEntity.ok("Password changed successfully");
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(
+            @Valid @RequestBody ForgotPasswordDTO dto) {
+
+        String token = authService.forgotPassword(dto.getEmail());
+        return ResponseEntity.ok(token); 
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(
+            @Valid @RequestBody ResetPasswordDTO dto) {
+
+        authService.resetPassword(dto);
+        return ResponseEntity.ok("Password reset successfully");
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponseDTO> refreshToken(
+            @RequestBody RefreshTokenDTO dto) {
+
+        LoginResponseDTO response = authService.refreshToken(dto);
+        return ResponseEntity.ok(response);
+    }
+
 }

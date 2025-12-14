@@ -1,12 +1,18 @@
 package com.example.securecustomerapi.service;
 
 import com.example.securecustomerapi.dto.*;
+import com.example.securecustomerapi.entity.RefreshToken;
 import com.example.securecustomerapi.entity.Role;
 import com.example.securecustomerapi.entity.User;
 import com.example.securecustomerapi.exception.DuplicateResourceException;
 import com.example.securecustomerapi.exception.ResourceNotFoundException;
+import com.example.securecustomerapi.repository.RefreshTokenRepository;
 import com.example.securecustomerapi.repository.UserRepository;
 import com.example.securecustomerapi.security.JwtTokenProvider;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -31,33 +37,50 @@ public class UserServiceImpl implements UserService {
     
     @Autowired
     private JwtTokenProvider tokenProvider;
+
+    @Autowired
+private RefreshTokenRepository refreshTokenRepository;
     
-    @Override
-    public LoginResponseDTO login(LoginRequestDTO loginRequest) {
-        // Authenticate user
-        Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(
-                loginRequest.getUsername(),
-                loginRequest.getPassword()
-            )
-        );
-        
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        
-        // Generate JWT token
-        String token = tokenProvider.generateToken(authentication);
-        
-        // Get user details
-        User user = userRepository.findByUsername(loginRequest.getUsername())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
-        return new LoginResponseDTO(
-            token,
+@Override
+public LoginResponseDTO login(LoginRequestDTO loginRequest) {
+
+    // 1. Authenticate
+    Authentication authentication = authenticationManager.authenticate(
+        new UsernamePasswordAuthenticationToken(
+            loginRequest.getUsername(),
+            loginRequest.getPassword()
+        )
+    );
+
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+
+    // 2. Generate access token
+    String accessToken = tokenProvider.generateToken(authentication);
+
+    // 3. Get user
+    User user = userRepository.findByUsername(loginRequest.getUsername())
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+    // 4. Remove old refresh tokens
+    refreshTokenRepository.deleteByUserId(user.getId());
+
+    // 5. Generate refresh token
+    RefreshToken refreshToken = new RefreshToken();
+    refreshToken.setUser(user);
+    refreshToken.setToken(UUID.randomUUID().toString());
+    refreshToken.setExpiryDate(LocalDateTime.now().plusDays(7));
+
+    refreshTokenRepository.save(refreshToken);
+
+    // 6. Return both tokens
+    return new LoginResponseDTO(
+            accessToken,
+            refreshToken.getToken(),
             user.getUsername(),
             user.getEmail(),
             user.getRole().name()
-        );
-    }
+    );
+}
     
     @Override
     public UserResponseDTO register(RegisterRequestDTO registerRequest) {
@@ -91,6 +114,39 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
         return convertToDTO(user);
+    }
+
+     @Override
+    public UserResponseDTO updateProfile(String username, UpdateProfileDTO dto) {
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        user.setFullName(dto.getFullName());
+
+        if (dto.getEmail() != null && !dto.getEmail().equals(user.getEmail())) {
+            if (userRepository.existsByEmail(dto.getEmail())) {
+                throw new DuplicateResourceException("Email already exists");
+            }
+            user.setEmail(dto.getEmail());
+        }
+
+        User savedUser = userRepository.save(user);
+        return convertToDTO(savedUser);
+    }
+
+    @Override
+    public void deleteAccount(String username, String password) {
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new RuntimeException("Password is incorrect");
+        }
+
+        user.setIsActive(false);
+        userRepository.save(user);
     }
     
     private UserResponseDTO convertToDTO(User user) {
